@@ -1,0 +1,349 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>View All Records</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      margin: 40px;
+      text-align: center;
+      background: #f9f9f9;
+    }
+    h1 {
+      margin-bottom: 20px;
+      color: #333;
+    }
+    #navButtons {
+      margin-bottom: 20px;
+    }
+    #navButtons button {
+      margin: 5px;
+      padding: 10px 18px;
+      font-size: 16px;
+      border: none;
+      border-radius: 5px;
+      cursor: pointer;
+      background-color: #007bff;
+      color: white;
+      transition: background-color 0.3s;
+    }
+    #navButtons button:hover {
+      background-color: #0056b3;
+    }
+    #actionButtons {
+      margin-bottom: 20px;
+    }
+    #actionButtons button {
+      margin: 5px;
+      padding: 10px 18px;
+      font-size: 16px;
+      border: none;
+      border-radius: 5px;
+      cursor: pointer;
+      background-color: #28a745;
+      color: white;
+      transition: background-color 0.3s;
+    }
+    #actionButtons button:hover {
+      background-color: #1e7e34;
+    }
+    #deleteAllBtn {
+      background-color: #dc3545;
+    }
+    #deleteAllBtn:hover {
+      background-color: #a71d2a;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      background: white;
+      margin-top: 20px;
+      box-shadow: 0 0 8px rgba(0,0,0,0.1);
+    }
+    th, td {
+      padding: 12px 15px;
+      border: 1px solid #ddd;
+      text-align: left;
+    }
+    th {
+      background-color: #007bff;
+      color: white;
+      user-select: none;
+    }
+    td button {
+      padding: 6px 12px;
+      border: none;
+      border-radius: 4px;
+      background-color: #dc3545;
+      color: white;
+      cursor: pointer;
+      font-size: 14px;
+    }
+    td button:hover {
+      background-color: #a71d2a;
+    }
+  </style>
+</head>
+<body>
+
+  <h1>View Patient Records</h1>
+
+  <div id="navButtons">
+    <button id="viewAllBtn">View All Records</button>
+    <button id="viewGuestBtn">View Guest Records</button>
+    <button id="viewEmployeeBtn">View Employee Records</button>
+  </div>
+
+  <div id="actionButtons">
+    <button id="printBtn">Print</button>
+    <button id="exportBtn">Export to Excel</button>
+    <button id="deleteAllBtn">Delete All Displayed Records</button>
+    <button id="backBtn">Back to Dashboard</button>
+  </div>
+
+  <table id="recordsTable"></table>
+
+  <script>
+    // Check if logged in
+    const loggedInUser = JSON.parse(localStorage.getItem("loggedInUser"));
+    if (!loggedInUser) {
+      alert("Please login first.");
+      window.location.href = "index.html";
+    }
+
+    const recordsTable = document.getElementById("recordsTable");
+    const printBtn = document.getElementById("printBtn");
+    const exportBtn = document.getElementById("exportBtn");
+    const deleteAllBtn = document.getElementById("deleteAllBtn");
+    const backBtn = document.getElementById("backBtn");
+
+    const viewAllBtn = document.getElementById("viewAllBtn");
+    const viewGuestBtn = document.getElementById("viewGuestBtn");
+    const viewEmployeeBtn = document.getElementById("viewEmployeeBtn");
+
+    // All patient fields (both guest and employee combined)
+    const employeeExtraFields = [
+      { id: "patientID", label: "Patient ID" },
+      { id: "civilStatus", label: "Civil Status" },
+      { id: "department", label: "Department" }
+    ];
+
+    const commonFields = [
+      { id: "patientName", label: "Patient Name" },
+      { id: "patientAge", label: "Age" },
+      { id: "sex", label: "Sex" },
+      { id: "patientAddress", label: "Address" },
+      { id: "walkInDate", label: "Walk-in Date" },
+      { id: "chiefComplaint", label: "Chief Complaint" },
+      { id: "history", label: "History of Past Illness" },
+      { id: "medication", label: "Medication" }
+    ];
+
+    let currentFilter = null; // null = all, "guest" or "employee"
+
+    // Render table header
+    function renderTableHeader() {
+      recordsTable.innerHTML = "";
+      const header = recordsTable.createTHead();
+      const row = header.insertRow();
+
+      // Decide fields based on filter
+      let fieldsToShow;
+      if (currentFilter === "employee") {
+        fieldsToShow = [...employeeExtraFields, ...commonFields];
+      } else if (currentFilter === "guest") {
+        fieldsToShow = [...commonFields];
+      } else {
+        // For all records, show all fields including employee extras + common, but guest won't have those employee fields
+        fieldsToShow = [...employeeExtraFields, ...commonFields];
+      }
+
+      fieldsToShow.forEach(f => {
+        const th = document.createElement("th");
+        th.textContent = f.label;
+        row.appendChild(th);
+      });
+
+      // Add timestamp, savedBy, and actions columns
+      ["Timestamp", "Saved By", "Actions"].forEach(text => {
+        const th = document.createElement("th");
+        th.textContent = text;
+        row.appendChild(th);
+      });
+    }
+
+    // Load patients from localStorage and apply filter
+    function loadPatients() {
+      const allPatients = JSON.parse(localStorage.getItem("patients")) || [];
+      if (currentFilter === "guest" || currentFilter === "employee") {
+        return allPatients.filter(p => p.type === currentFilter);
+      }
+      return allPatients;
+    }
+
+    // Render patient records in table
+    function renderRecords() {
+      renderTableHeader();
+
+      const patients = loadPatients();
+
+      const tbody = recordsTable.createTBody();
+
+      let fieldsToShow;
+      if (currentFilter === "employee") {
+        fieldsToShow = [...employeeExtraFields, ...commonFields];
+      } else if (currentFilter === "guest") {
+        fieldsToShow = [...commonFields];
+      } else {
+        fieldsToShow = [...employeeExtraFields, ...commonFields];
+      }
+
+      patients.forEach(patient => {
+        const row = tbody.insertRow();
+
+        fieldsToShow.forEach(f => {
+          const cell = row.insertCell();
+          let val = patient[f.id] || "";
+
+          if (f.id === "sex") {
+            val = val === "M" ? "Male" : val === "F" ? "Female" : "";
+          }
+          // For guest records, employee extra fields might be empty, so show blank
+          cell.textContent = val;
+        });
+
+        // Timestamp
+        const timestampCell = row.insertCell();
+        timestampCell.textContent = patient.timestamp || "";
+
+        // Saved By
+        const savedByCell = row.insertCell();
+        savedByCell.textContent = patient.savedBy || "";
+
+        // Actions - Delete button per record
+        const actionCell = row.insertCell();
+        const delBtn = document.createElement("button");
+        delBtn.textContent = "Delete";
+        delBtn.style.backgroundColor = "#dc3545";
+        delBtn.style.color = "white";
+        delBtn.style.border = "none";
+        delBtn.style.padding = "6px 12px";
+        delBtn.style.borderRadius = "4px";
+        delBtn.style.cursor = "pointer";
+
+        delBtn.onclick = () => {
+          if (confirm("Are you sure you want to delete this record?")) {
+            deletePatient(patient.id);
+          }
+        };
+        actionCell.appendChild(delBtn);
+      });
+    }
+
+    // Delete a patient record by id
+    function deletePatient(id) {
+      let allPatients = JSON.parse(localStorage.getItem("patients")) || [];
+      allPatients = allPatients.filter(p => p.id !== id);
+      localStorage.setItem("patients", JSON.stringify(allPatients));
+      renderRecords();
+    }
+
+    // Delete all currently displayed records (filtered)
+    function deleteAllDisplayed() {
+      if (!confirm("Are you sure you want to delete all displayed records?")) return;
+
+      let allPatients = JSON.parse(localStorage.getItem("patients")) || [];
+
+      if (currentFilter === "guest" || currentFilter === "employee") {
+        allPatients = allPatients.filter(p => p.type !== currentFilter);
+      } else {
+        allPatients = [];
+      }
+
+      localStorage.setItem("patients", JSON.stringify(allPatients));
+      renderRecords();
+    }
+
+    // Print current table view
+    printBtn.onclick = () => {
+      const originalTitle = document.title;
+      document.title = "Patient Records";
+      window.print();
+      document.title = originalTitle;
+    };
+
+    // Export displayed records to CSV (Excel-friendly)
+    exportBtn.onclick = () => {
+      const patients = loadPatients();
+
+      let fieldsToExport;
+      if (currentFilter === "employee") {
+        fieldsToExport = [...employeeExtraFields, ...commonFields];
+      } else if (currentFilter === "guest") {
+        fieldsToExport = [...commonFields];
+      } else {
+        fieldsToExport = [...employeeExtraFields, ...commonFields];
+      }
+
+      // Prepare CSV header row
+      const headers = fieldsToExport.map(f => `"${f.label}"`);
+      headers.push('"Timestamp"', '"Saved By"');
+
+      // Prepare rows
+      const rows = patients.map(p => {
+        return fieldsToExport.map(f => {
+          let val = p[f.id] || "";
+          if (f.id === "sex") {
+            val = val === "M" ? "Male" : val === "F" ? "Female" : "";
+          }
+          if (typeof val === "string") {
+            val = val.replace(/"/g, '""'); // Escape quotes
+          }
+          return `"${val}"`;
+        }).concat([
+          `"${p.timestamp || ""}"`,
+          `"${p.savedBy || ""}"`
+        ]).join(",");
+      });
+
+      const csvContent = [headers.join(","), ...rows].join("\n");
+      const blob = new Blob([csvContent], {type: "text/csv;charset=utf-8;"});
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `PatientRecords_${loggedInUser.username}_${new Date().toISOString().slice(0,10)}.csv`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    };
+
+    // Back to dashboard button
+    backBtn.onclick = () => {
+      window.location.href = "dashboard.html";
+    };
+
+    // Filter buttons handlers
+    viewAllBtn.onclick = () => {
+      currentFilter = null;
+      renderRecords();
+    };
+
+    viewGuestBtn.onclick = () => {
+      currentFilter = "guest";
+      renderRecords();
+    };
+
+    viewEmployeeBtn.onclick = () => {
+      currentFilter = "employee";
+      renderRecords();
+    };
+
+    // Initial load - show all records
+    renderRecords();
+  </script>
+
+</body>
+</html>
